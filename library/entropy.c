@@ -64,6 +64,8 @@
 
 void mbedtls_entropy_init( mbedtls_entropy_context *ctx )
 {
+    printf("%s ==> \n", __func__);
+
     ctx->source_count = 0;
     memset( ctx->source, 0, sizeof( ctx->source ) );
 
@@ -105,18 +107,26 @@ void mbedtls_entropy_init( mbedtls_entropy_context *ctx )
                                 MBEDTLS_ENTROPY_MIN_HAVEGE,
                                 MBEDTLS_ENTROPY_SOURCE_STRONG );
 #endif
-#if defined(MBEDTLS_ENTROPY_HARDWARE_ALT)
+#if defined(MBEDTLS_ENTROPY_HARDWARE_ALT)   
+/*
     mbedtls_entropy_add_source( ctx, mbedtls_hardware_poll, NULL,
                                 MBEDTLS_ENTROPY_MIN_HARDWARE,
                                 MBEDTLS_ENTROPY_SOURCE_STRONG );
+*/
 #endif
 #if defined(MBEDTLS_ENTROPY_NV_SEED)
+    printf("%s, %d\n", __func__, __LINE__);
+
+    printf("Add NV source\n");
+    printf("%s, %d\n", __func__, __LINE__);
+
     mbedtls_entropy_add_source( ctx, mbedtls_nv_seed_poll, NULL,
                                 MBEDTLS_ENTROPY_BLOCK_SIZE,
                                 MBEDTLS_ENTROPY_SOURCE_STRONG );
     ctx->initial_entropy_run = 0;
 #endif
 #endif /* MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES */
+    printf("%s, %d", __func__, __LINE__);
 }
 
 void mbedtls_entropy_free( mbedtls_entropy_context *ctx )
@@ -144,6 +154,8 @@ int mbedtls_entropy_add_source( mbedtls_entropy_context *ctx,
                         mbedtls_entropy_f_source_ptr f_source, void *p_source,
                         size_t threshold, int strong )
 {
+    printf("%s, %d", __func__, __LINE__);
+
     int idx, ret = 0;
 
 #if defined(MBEDTLS_THREADING_C)
@@ -258,10 +270,10 @@ int mbedtls_entropy_update_manual( mbedtls_entropy_context *ctx,
  */
 static int entropy_gather_internal( mbedtls_entropy_context *ctx )
 {
-    int ret, i, have_one_strong = 0;
+    int ret = 0, i, have_one_strong = 0;
     unsigned char buf[MBEDTLS_ENTROPY_MAX_GATHER];
     size_t olen;
-
+    printf("entropy_gather_internal ==>\n");
     if( ctx->source_count == 0 )
         return( MBEDTLS_ERR_ENTROPY_NO_SOURCES_DEFINED );
 
@@ -270,15 +282,18 @@ static int entropy_gather_internal( mbedtls_entropy_context *ctx )
      */
     for( i = 0; i < ctx->source_count; i++ )
     {
-        if( ctx->source[i].strong == MBEDTLS_ENTROPY_SOURCE_STRONG )
-            have_one_strong = 1;
-
+        printf("Try source %d, ctx->source[i].strong = %d\n, ", i, ctx->source[i].strong);
         olen = 0;
-        if( ( ret = ctx->source[i].f_source( ctx->source[i].p_source,
+        if( ( ctx->source[i].f_source( ctx->source[i].p_source,
                         buf, MBEDTLS_ENTROPY_MAX_GATHER, &olen ) ) != 0 )
         {
-            goto cleanup;
+            printf("%s, %d FAILED\n", __func__, __LINE__);
+            // goto cleanup;
+            continue;
         }
+
+        if (ctx->source[i].strong == MBEDTLS_ENTROPY_SOURCE_STRONG)
+            have_one_strong = 1;
 
         /*
          * Add if we actually gathered something
@@ -292,9 +307,10 @@ static int entropy_gather_internal( mbedtls_entropy_context *ctx )
         }
     }
 
-    if( have_one_strong == 0 )
+    if (have_one_strong == 0) {
+        printf("No strong source!!\n\n\n");
         ret = MBEDTLS_ERR_ENTROPY_NO_STRONG_SOURCE;
-
+    }
 cleanup:
     mbedtls_platform_zeroize( buf, sizeof( buf ) );
 
@@ -365,7 +381,7 @@ int mbedtls_entropy_func( void *data, unsigned char *output, size_t len )
 
         done = 1;
         for( i = 0; i < ctx->source_count; i++ )
-            if( ctx->source[i].size < ctx->source[i].threshold )
+            if( ctx->source[i].size < ctx->source[i].threshold && ctx->source[i].size != 0)
                 done = 0;
     }
     while( ! done );
@@ -547,6 +563,7 @@ static int mbedtls_entropy_source_self_test_gather( unsigned char *buf, size_t b
     size_t olen = 0;
     size_t attempts = buf_len;
 
+    printf("SELF TEST mbedtls_entropy_source_self_test_gather\n\n");
     while( attempts > 0 && entropy_len < buf_len )
     {
         if( ( ret = mbedtls_hardware_poll( NULL, buf + entropy_len,
@@ -719,3 +736,4 @@ cleanup:
 #endif /* MBEDTLS_SELF_TEST */
 
 #endif /* MBEDTLS_ENTROPY_C */
+
